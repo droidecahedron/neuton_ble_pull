@@ -15,7 +15,7 @@ You can also try to repurpose Nordic UART Service (NUS) to avoid creation of a c
 
 # Requirements
 ## Software
-nRF Connect SDK v3.0.2
+nRF Connect SDK v3.1.0
 
 ## Hardware
 nRF54L15-DK
