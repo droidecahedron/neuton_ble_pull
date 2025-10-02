@@ -52,7 +52,12 @@ Connect with any device and enable notifications for the `0x5E85012D` characteri
  46--- 72 messages dropped ---
  ```
 
- ## LE App receiving data
+ ## LE Phone App (nRF Connect for Mobile) scanning for device
+ <img width="450" height="800" alt="image" src="https://github.com/user-attachments/assets/ee963c0f-688c-48eb-ab04-769c7b88421a" />
+
+ ## LE Phone App (nRF Connect for Mobile) receiving data
+ <img width="450" height="800" alt="image" src="https://github.com/user-attachments/assets/784c5859-496f-4e4e-88d5-e18f6cbc4c28" />
+> You will see the first byte go up per "iter" every notification.
 
 # Extras
 For a reference application (incl. serial data pull) see the [following](https://github.com/Neuton-tinyML/neuton-nordic-thingy53-ble-remotecontrol/blob/13137e79ba527f2bc68213ea8cd8aedb33ceb253/src/main.c#L135-L137).
