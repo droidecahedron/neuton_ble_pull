@@ -11,7 +11,7 @@ You can also try to repurpose Nordic UART Service (NUS) to avoid creation of a c
 > [!NOTE]
 > You could use Enhanced Shockburst (ESB) if you have access to two Nordic devices and pipe out the data potentially faster, with less main.c code content.
 > BLE was chosen for this sample for interoperability and to be able to potentially piggyback on an existing BLE application.
-> You can see a sample of that [here](https://github.com/droidecahedron/neuton_esb_pull)
+> You can see a sample of ESB throughput [here](https://github.com/droidecahedron/esbperf/tree/main), and use the same logic for the `SENS` portion of main.c of this code sample to use BLE instead.
 
 # Requirements
 ## Software
