@@ -53,10 +53,10 @@ Connect with any device and enable notifications for the `0x5E85012D` characteri
  ```
 
  ## LE Phone App (nRF Connect for Mobile) scanning for device
- <img width="45%" alt="image" src="https://github.com/user-attachments/assets/ee963c0f-688c-48eb-ab04-769c7b88421a" />
+ <img width="25%" alt="image" src="https://github.com/user-attachments/assets/ee963c0f-688c-48eb-ab04-769c7b88421a" />
 
  ## LE Phone App (nRF Connect for Mobile) receiving data
- <img width="45%" alt="image" src="https://github.com/user-attachments/assets/784c5859-496f-4e4e-88d5-e18f6cbc4c28" />
+ <img width="25%" alt="image" src="https://github.com/user-attachments/assets/784c5859-496f-4e4e-88d5-e18f6cbc4c28" />
  
 > You will see the first byte go up per "iter" every notification.
 
