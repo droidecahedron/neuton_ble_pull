@@ -3,10 +3,9 @@
 # Brief
 A simple BLE peripheral application that generates mock sensor data and pipes it out via a custom BLE characteristic. It also has a receive characteristic in case you want to configure the device.
 
-This way you can csv it in whatever means you like, preprocess it to ensure signal data is centered, and upload it as training/feature extraction data.
+This way you can csv it in whatever means you like, preprocess it to ensure signal data is centered, and upload it as training/feature extraction data, even if you don't have a spare serial output for the device.
 
 You can also try to repurpose Nordic UART Service (NUS) to avoid creation of a custom characteristic.
-
 
 
 > [!NOTE]
