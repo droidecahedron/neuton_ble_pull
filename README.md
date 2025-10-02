@@ -7,9 +7,12 @@ This way you can csv it in whatever means you like, preprocess it to ensure sign
 
 You can also try to repurpose Nordic UART Service (NUS) to avoid creation of a custom characteristic.
 
+
+
 > [!NOTE]
-> You could use Enhanced Shockburst (ESB) if you have access to two Nordic devices and pipe out the data much faster.
-> BLE was chosen for this sample for interoperability.
+> You could use Enhanced Shockburst (ESB) if you have access to two Nordic devices and pipe out the data potentially faster, with less main.c code content.
+> BLE was chosen for this sample for interoperability and to be able to potentially piggyback on an existing BLE application.
+> You can see a sample of that [here](https://github.com/droidecahedron/neuton_esb_pull)
 
 # Requirements
 ## Software
