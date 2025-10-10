@@ -387,15 +387,38 @@ int main(void)
     gpio_pin_configure(gpio1_dev, CPS_PIN, GPIO_OUTPUT);
     gpio_pin_configure(gpio1_dev, CHL_PIN, GPIO_OUTPUT);
 
+    printk("STARTUP NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
+    // note: may need to audit RADIO_TXP_DEFAULT in hci_driver.c
+    // I think we can drive this without CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL though
+    // bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,buf, &rsp); is bounded
+    // by SoC TXPOWER register, so it wont help us here.
+
+    k_msleep(100);
+
+    printk("READING NRF_RADIO->TXPOWER FROM DTS+CONFIG AFTER STARTUP: 0x%x\n",NRF_RADIO->TXPOWER);
+
+    // IDK if SDC messes with this so lets cache
+    volatile uint32_t txpower_cache;
+    
+    printk("Setting new base NRF_RADIO->TXPOWER: 0x18\n");
+    NRF_RADIO->TXPOWER = 0x18;
     printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
+    
 
     for (;;)
     {
+        printk("ENTERING BYPASS, NEW TXPOWER=0x3F (+8dBm)\n");
+        txpower_cache = NRF_RADIO->TXPOWER;
+        NRF_RADIO->TXPOWER = 0x3F; // +8 dBm
         printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
         gpio_pin_toggle(gpio1_dev, CPS_PIN);
         gpio_pin_toggle(gpio1_dev, CHL_PIN);
         dk_set_led(DK_STATUS_LED, (++blink) % 2);
         k_sleep(K_MSEC(2000));
+
+        printk("LEAVING BYPASS, restoring cached TXPOWER 0x%x\n",txpower_cache);
+        NRF_RADIO->TXPOWER = txpower_cache;
+        printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
         gpio_pin_toggle(gpio1_dev, CPS_PIN);
         gpio_pin_toggle(gpio1_dev, CHL_PIN);
         k_sleep(K_MSEC(15));
