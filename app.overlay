@@ -1,0 +1,27 @@
+
+/ {
+    nrf_radio_fem: my_fem {
+        compatible = "skyworks,sky66112-11", "generic-fem-two-ctrl-pins";
+        ctx-gpios = <&gpio1 10 GPIO_ACTIVE_HIGH>; // LED1
+        crx-gpios = <&gpio1 14 GPIO_ACTIVE_HIGH>; // LED3
+        cps-gpios = <&gpio1 11 GPIO_ACTIVE_LOW>; // free
+        chl-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>; // free
+        tx-gain-db = <18>;
+    };
+};
+
+&radio {
+    fem = <&nrf_radio_fem>;
+};
+
+&dppic10 {
+    status = "okay";
+};
+
+// &ppib11 {
+//     status = "okay";
+// };
+
+&gpio1 {
+    status="okay";
+};

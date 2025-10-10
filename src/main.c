@@ -23,6 +23,14 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/printk.h>
 
+#include <hal/nrf_gpio.h>
+#include <zephyr/drivers/gpio.h>
+
+#define GPIO1_NODE DT_NODELABEL(gpio1)
+#define CPS_PIN 11
+#define CHL_PIN 12
+const struct device *gpio1_dev = DEVICE_DT_GET(GPIO1_NODE);
+
 LOG_MODULE_REGISTER(neuton_pull_ble, LOG_LEVEL_INF);
 #define DK_STATUS_LED DK_LED1
 #define BLE_STATE_LED DK_LED2
@@ -297,12 +305,12 @@ void ble_write_thread(void)
     {
         // wait until ip dat rdy
         k_msgq_get(&sens_msgq, &msg, K_FOREVER);
-        printk("BLE thread received data: 0x");
-        for (uint8_t i = 0; i < SAMPLE_WINDOW; i++)
-        {
-            printk(" %02X", msg.ip_dat[i]);
-        }
-        printk("\n");
+        // printk("BLE thread received data: 0x");
+        // for (uint8_t i = 0; i < SAMPLE_WINDOW; i++)
+        // {
+        //     printk(" %02X", msg.ip_dat[i]);
+        // }
+        // printk("\n");
 
         if (m_connection_handle) // if ble connection present
         {
@@ -313,7 +321,7 @@ void ble_write_thread(void)
             LOG_INF("BLE Thread does not detect an active BLE connection");
         }
 
-        k_sleep(BLE_NOTIFY_INTERVAL);
+        k_sleep(K_MSEC(5000));
     }
 }
 
@@ -338,7 +346,7 @@ void sens_sample_thread(void)
             k_sleep(SENS_SAMPLE_INTERVAL_MS);
         }
 
-        LOG_INF("sens thread sent %d samples", SAMPLE_WINDOW);
+        //LOG_INF("sens thread sent %d samples", SAMPLE_WINDOW);
         err = k_msgq_put(&sens_msgq, &msg, K_FOREVER);
         if (err != 0)
         {
@@ -376,10 +384,21 @@ int main(void)
     k_work_init(&adv_work, adv_work_handler);
     advertising_start();
 
+    gpio_pin_configure(gpio1_dev, CPS_PIN, GPIO_OUTPUT);
+    gpio_pin_configure(gpio1_dev, CHL_PIN, GPIO_OUTPUT);
+
+    printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
+
     for (;;)
     {
+        printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
+        gpio_pin_toggle(gpio1_dev, CPS_PIN);
+        gpio_pin_toggle(gpio1_dev, CHL_PIN);
         dk_set_led(DK_STATUS_LED, (++blink) % 2);
         k_sleep(K_MSEC(2000));
+        gpio_pin_toggle(gpio1_dev, CPS_PIN);
+        gpio_pin_toggle(gpio1_dev, CHL_PIN);
+        k_sleep(K_MSEC(15));
     }
     return 0;
 }
