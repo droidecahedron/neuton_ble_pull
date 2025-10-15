@@ -441,12 +441,24 @@ static void exit_bypass_manual_radio_ctrl(void)
 
 // Since my FEM bypass loss is -21, we can ask for -21 for 0dbm (PA on) or -13 for
 // bypass (+8 dBm)
+# if !(RADIO_TX_MANUAL)
 #define BYPASS_OFF_21DBM -21
-#define BYPASS_OFF_20DBM -20
-#define BYPASS_OFF_19DBM -19
+#define BYPASS_OFF_20DBM -22
+#define BYPASS_OFF_19DBM -23
 #define BYPASS_ON_8DBM -13
 #define BYPASS_ON_7DBM -14
 #define BYPASS_ON_6DBM -15
+#else
+//!DBG: SANITY CHECK. If you switch tx-gain-db in dts to be +21, you'll see it will be wrong.
+#define FEM_PA_GAIN 21
+#define BYPASS_OFF_21DBM 21
+#define BYPASS_OFF_20DBM 20
+#define BYPASS_OFF_19DBM 19
+// if this works, then the ceiling for hci txpower cmds isn't capped by socdbm register max
+#define BYPASS_ON_8DBM FEM_PA_GAIN + 8
+#define BYPASS_ON_7DBM FEM_PA_GAIN + 7
+#define BYPASS_ON_6DBM FEM_PA_GAIN + 6
+#endif
 
 // HCI TXPWR
 /* The value you set is interpreted as the desired output power at the antenna,
@@ -554,7 +566,7 @@ int main(void)
     // note: may need to audit RADIO_TXP_DEFAULT in hci_driver.c
     // I think we can drive this without CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL though
     // bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,buf, &rsp); is bounded
-    // by SoC TXPOWER register, so it wont help us here.
+    // by SoC TXPOWER register, unless we flip the gain to bypass loss in the dts.
 
     k_msleep(100);
 
@@ -580,14 +592,13 @@ int main(void)
         else
         {
             int8_t txp;
-            bypass_mode = !(bypass_mode);
             if (bypass_mode)
             {
-                printk("LEAVING BYPASS MODE\n");
+                printk("BYPASS MODE\n");
             }
             else
             {
-                printk("ENTERING BYPASS MODE\n");
+                printk("NOT BYPASS MODE\n");
             }
             cfg_bypass_gpio();
 
@@ -613,7 +624,7 @@ int main(void)
                 printk("Connected (%d) - RSSI = %d\n", m_conn_handle, rssi);
                 if (rssi > -70)
                 {
-                    txp_adaptive = bypass_mode ? BYPASS_ON_8DBM : BYPASS_OFF_21DBM;
+                    txp_adaptive = bypass_mode ? BYPASS_ON_6DBM : BYPASS_OFF_19DBM;
                 }
                 else if (rssi > -90)
                 {
@@ -621,7 +632,7 @@ int main(void)
                 }
                 else
                 {
-                    txp_adaptive = bypass_mode ? BYPASS_ON_6DBM : BYPASS_OFF_19DBM;
+                    txp_adaptive = bypass_mode ? BYPASS_ON_8DBM : BYPASS_OFF_21DBM;
                 }
                 printk("Adaptive Tx power selected = %d\n", txp_adaptive);
                 set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_CONN, m_conn_handle, txp_adaptive);
@@ -632,6 +643,7 @@ int main(void)
             }
             printk("NRF_RADIO->TXPOWER:0x%x\n", NRF_RADIO->TXPOWER);
             k_sleep(K_MSEC(500));
+            bypass_mode = !bypass_mode;
         }
     }
     return 0;
