@@ -15,16 +15,20 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/hci_vs.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
 
 #include <hal/nrf_gpio.h>
 #include <zephyr/drivers/gpio.h>
+
+#define RADIO_TX_MANUAL 0
 
 #define GPIO1_NODE DT_NODELABEL(gpio1)
 #define CPS_PIN 11
@@ -62,6 +66,8 @@ K_MSGQ_DEFINE(sens_msgq, sizeof(struct sens_sample_msg), 8, 4);
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME // from prj.conf
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
+volatile bool bypass_mode = false;
+
 static const struct bt_le_adv_param *adv_param =
     BT_LE_ADV_PARAM((BT_LE_ADV_OPT_CONN | BT_LE_ADV_OPT_USE_IDENTITY), /* Connectable advertising and use
                                                                           identity address */
@@ -74,6 +80,37 @@ static const struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
     BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 };
+
+static void read_conn_rssi(uint16_t handle, int8_t *rssi)
+{
+    struct net_buf *buf, *rsp = NULL;
+    struct bt_hci_cp_read_rssi *cp;
+    struct bt_hci_rp_read_rssi *rp;
+
+    int err;
+
+    buf = bt_hci_cmd_alloc(K_FOREVER);
+    if (!buf)
+    {
+        printk("Unable to allocate command buffer\n");
+        return;
+    }
+
+    cp = net_buf_add(buf, sizeof(*cp));
+    cp->handle = sys_cpu_to_le16(handle);
+
+    err = bt_hci_cmd_send_sync(BT_HCI_OP_READ_RSSI, buf, &rsp);
+    if (err)
+    {
+        printk("Read RSSI err: %d\n", err);
+        return;
+    }
+
+    rp = (void *)rsp->data;
+    *rssi = rp->rssi;
+
+    net_buf_unref(rsp);
+}
 
 static const struct bt_data sd[] = {
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, NEUTON_PULL_SERVICE_UUID),
@@ -155,7 +192,9 @@ BT_GATT_SERVICE_DEFINE(neuton_pull, BT_GATT_PRIMARY_SERVICE(BT_UUID_NEUTON_PULL)
                                               BT_GATT_PERM_READ | BT_GATT_PERM_WRITE, NULL, on_recv_cfg, NULL), );
 
 // BT globals and callbacks
-struct bt_conn *m_connection_handle = NULL;
+struct bt_conn *m_connection = NULL;
+static uint16_t m_conn_handle;
+
 static struct bt_gatt_exchange_params exchange_params;
 static void adv_work_handler(struct k_work *work)
 {
@@ -203,7 +242,7 @@ static void update_data_length(struct bt_conn *conn)
         .tx_max_len = CONFIG_BT_CTLR_DATA_LENGTH_MAX,
         .tx_max_time = BT_GAP_DATA_TIME_MAX,
     };
-    err = bt_conn_le_data_len_update(m_connection_handle, &my_data_len);
+    err = bt_conn_le_data_len_update(m_connection, &my_data_len);
     if (err)
     {
         LOG_ERR("data_len_update failed (err %d)", err);
@@ -234,16 +273,18 @@ static void update_mtu(struct bt_conn *conn)
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
+    int ret;
     if (err)
     {
         LOG_WRN("Connection failed (err %u)", err);
         return;
     }
-    m_connection_handle = bt_conn_ref(conn);
+    m_connection = bt_conn_ref(conn);
+    ret = bt_hci_get_conn_handle(m_connection, &m_conn_handle);
     LOG_INF("Connected");
 
     struct bt_conn_info info;
-    err = bt_conn_get_info(m_connection_handle, &info);
+    err = bt_conn_get_info(m_connection, &info);
     if (err)
     {
         LOG_ERR("bt_conn_get_info() returned %d", err);
@@ -254,10 +295,10 @@ static void connected(struct bt_conn *conn, uint8_t err)
     LOG_INF("Connection parameters: interval %.2f ms, latency %d intervals, timeout %d ms", connection_interval,
             info.le.latency, supervision_timeout);
 
-    update_phy(m_connection_handle);
+    update_phy(m_connection);
     k_sleep(K_MSEC(1000)); // Delay added to avoid link layer collisions.
-    update_data_length(m_connection_handle);
-    update_mtu(m_connection_handle);
+    update_data_length(m_connection);
+    update_mtu(m_connection);
 
     dk_set_led_on(BLE_STATE_LED);
 }
@@ -265,8 +306,8 @@ static void connected(struct bt_conn *conn, uint8_t err)
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
     LOG_INF("Disconnected (reason %u)", reason);
-    bt_conn_unref(m_connection_handle);
-    m_connection_handle = NULL;
+    bt_conn_unref(m_connection);
+    m_connection = NULL;
     dk_set_led_off(BLE_STATE_LED);
 }
 
@@ -312,9 +353,9 @@ void ble_write_thread(void)
         // }
         // printk("\n");
 
-        if (m_connection_handle) // if ble connection present
+        if (m_connection) // if ble connection present
         {
-            ble_sens_report(m_connection_handle, &msg.ip_dat[0], SAMPLE_WINDOW);
+            ble_sens_report(m_connection, &msg.ip_dat[0], SAMPLE_WINDOW);
         }
         else
         {
@@ -346,7 +387,7 @@ void sens_sample_thread(void)
             k_sleep(SENS_SAMPLE_INTERVAL_MS);
         }
 
-        //LOG_INF("sens thread sent %d samples", SAMPLE_WINDOW);
+        // LOG_INF("sens thread sent %d samples", SAMPLE_WINDOW);
         err = k_msgq_put(&sens_msgq, &msg, K_FOREVER);
         if (err != 0)
         {
@@ -356,10 +397,132 @@ void sens_sample_thread(void)
     }
 }
 
+// uses global bypass_mode
+static void cfg_bypass_gpio(void)
+{
+    // cps active low in dts, chl active high.
+    // cps=high for bypass, chl=high for high pwr tx
+    if (bypass_mode)
+    {
+        gpio_pin_set(gpio1_dev, CPS_PIN, GPIO_OUTPUT_INACTIVE);
+        gpio_pin_set(
+            gpio1_dev, CHL_PIN,
+            GPIO_OUTPUT_INACTIVE); // technically a dont care for bypass/nonbypass but illustrative for tx modes
+    }
+    else
+    {
+        gpio_pin_set(gpio1_dev, CPS_PIN, GPIO_OUTPUT_ACTIVE);
+        gpio_pin_set(gpio1_dev, CHL_PIN, GPIO_OUTPUT_ACTIVE);
+    }
+}
+
+// IDK if SDC messes with this so lets cache
+volatile uint32_t txpower_cache;
+
+// Manual TXPWR
+static void enter_bypass_manual_radio_ctrl(void)
+{
+    bypass_mode = true;
+    printk("ENTERING BYPASS, NEW TXPOWER=0x3F (+8dBm)\n");
+    txpower_cache = NRF_RADIO->TXPOWER;
+    NRF_RADIO->TXPOWER = 0x3F; // +8 dBm
+    printk("NRF_RADIO->TXPOWER:0x%x\n", NRF_RADIO->TXPOWER);
+    cfg_bypass_gpio();
+}
+
+static void exit_bypass_manual_radio_ctrl(void)
+{
+    bypass_mode = false;
+    printk("LEAVING BYPASS, restoring cached TXPOWER 0x%x\n", txpower_cache);
+    NRF_RADIO->TXPOWER = txpower_cache;
+    printk("NRF_RADIO->TXPOWER:0x%x\n", NRF_RADIO->TXPOWER);
+    cfg_bypass_gpio();
+}
+
+// Since my FEM bypass loss is -21, we can ask for -21 for 0dbm (PA on) or -13 for
+// bypass (+8 dBm)
+#define BYPASS_OFF_21DBM -21
+#define BYPASS_OFF_20DBM -20
+#define BYPASS_OFF_19DBM -19
+#define BYPASS_ON_8DBM -13
+#define BYPASS_ON_7DBM -14
+#define BYPASS_ON_6DBM -15
+
+// HCI TXPWR
+/* The value you set is interpreted as the desired output power at the antenna,
+and the stack will automatically adjust the SoC output power and FEM gain to
+achieve the requested value as closely as possible.
+The actual TX power reported back reflects the combined effect of the SoC and FEM*/
+
+static void set_tx_power(uint8_t handle_type, uint16_t handle, int8_t tx_pwr_lvl)
+{
+    struct bt_hci_cp_vs_write_tx_power_level *cp;
+    struct bt_hci_rp_vs_write_tx_power_level *rp;
+    struct net_buf *buf, *rsp = NULL;
+    int err;
+
+    buf = bt_hci_cmd_alloc(K_FOREVER);
+    if (!buf)
+    {
+        printk("Unable to allocate command buffer\n");
+        return;
+    }
+
+    cp = net_buf_add(buf, sizeof(*cp));
+    cp->handle = sys_cpu_to_le16(handle);
+    cp->handle_type = handle_type;
+    cp->tx_power_level = tx_pwr_lvl;
+
+    err = bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL, buf, &rsp);
+    if (err)
+    {
+        printk("Set Tx power err: %d\n", err);
+        return;
+    }
+
+    rp = (void *)rsp->data;
+    printk("Actual Tx Power: %d\n", rp->selected_tx_power);
+
+    net_buf_unref(rsp);
+}
+
+static void get_tx_power(uint8_t handle_type, uint16_t handle, int8_t *tx_pwr_lvl)
+{
+    struct bt_hci_cp_vs_read_tx_power_level *cp;
+    struct bt_hci_rp_vs_read_tx_power_level *rp;
+    struct net_buf *buf, *rsp = NULL;
+    int err;
+
+    *tx_pwr_lvl = 0xFF;
+    buf = bt_hci_cmd_alloc(K_FOREVER);
+    if (!buf)
+    {
+        printk("Unable to allocate command buffer\n");
+        return;
+    }
+
+    cp = net_buf_add(buf, sizeof(*cp));
+    cp->handle = sys_cpu_to_le16(handle);
+    cp->handle_type = handle_type;
+
+    err = bt_hci_cmd_send_sync(BT_HCI_OP_VS_READ_TX_POWER_LEVEL, buf, &rsp);
+    if (err)
+    {
+        printk("Read Tx power err: %d\n", err);
+        return;
+    }
+
+    rp = (void *)rsp->data;
+    *tx_pwr_lvl = rp->tx_power_level;
+
+    net_buf_unref(rsp);
+}
+
 int main(void)
 {
     int err;
     int blink = 0;
+    int8_t txp_get = 0;
 
     err = dk_leds_init();
     if (err)
@@ -387,7 +550,7 @@ int main(void)
     gpio_pin_configure(gpio1_dev, CPS_PIN, GPIO_OUTPUT);
     gpio_pin_configure(gpio1_dev, CHL_PIN, GPIO_OUTPUT);
 
-    printk("STARTUP NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
+    printk("STARTUP NRF_RADIO->TXPOWER:0x%x\n", NRF_RADIO->TXPOWER);
     // note: may need to audit RADIO_TXP_DEFAULT in hci_driver.c
     // I think we can drive this without CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL though
     // bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,buf, &rsp); is bounded
@@ -395,33 +558,81 @@ int main(void)
 
     k_msleep(100);
 
-    printk("READING NRF_RADIO->TXPOWER FROM DTS+CONFIG AFTER STARTUP: 0x%x\n",NRF_RADIO->TXPOWER);
+    printk("READING NRF_RADIO->TXPOWER FROM DTS+CONFIG AFTER STARTUP: 0x%x\n", NRF_RADIO->TXPOWER);
 
-    // IDK if SDC messes with this so lets cache
-    volatile uint32_t txpower_cache;
-    
-    printk("Setting new base NRF_RADIO->TXPOWER: 0x18\n");
-    NRF_RADIO->TXPOWER = 0x18;
-    printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
-    
+    // printk("Setting new base NRF_RADIO->TXPOWER: 0x18\n");
+    // NRF_RADIO->TXPOWER = 0x18;
+    // printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
 
     for (;;)
     {
-        printk("ENTERING BYPASS, NEW TXPOWER=0x3F (+8dBm)\n");
-        txpower_cache = NRF_RADIO->TXPOWER;
-        NRF_RADIO->TXPOWER = 0x3F; // +8 dBm
-        printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
-        gpio_pin_toggle(gpio1_dev, CPS_PIN);
-        gpio_pin_toggle(gpio1_dev, CHL_PIN);
-        dk_set_led(DK_STATUS_LED, (++blink) % 2);
-        k_sleep(K_MSEC(2000));
+        if (RADIO_TX_MANUAL)
+        {
+            enter_bypass_manual_radio_ctrl();
 
-        printk("LEAVING BYPASS, restoring cached TXPOWER 0x%x\n",txpower_cache);
-        NRF_RADIO->TXPOWER = txpower_cache;
-        printk("NRF_RADIO->TXPOWER:0x%x\n",NRF_RADIO->TXPOWER);
-        gpio_pin_toggle(gpio1_dev, CPS_PIN);
-        gpio_pin_toggle(gpio1_dev, CHL_PIN);
-        k_sleep(K_MSEC(15));
+            dk_set_led(DK_STATUS_LED, (++blink) % 2);
+            k_sleep(K_MSEC(2000));
+
+            exit_bypass_manual_radio_ctrl();
+
+            k_sleep(K_MSEC(15));
+        }
+        else
+        {
+            int8_t txp;
+            bypass_mode = !(bypass_mode);
+            if (bypass_mode)
+            {
+                printk("LEAVING BYPASS MODE\n");
+            }
+            else
+            {
+                printk("ENTERING BYPASS MODE\n");
+            }
+            cfg_bypass_gpio();
+
+            // You can handle this in conn cb, adv, or modulate based on read_conn_rssi.
+            if (!m_connection)
+            {
+                txp = bypass_mode ? BYPASS_ON_8DBM : BYPASS_OFF_21DBM;
+                printk("Set Tx power level to %d\n", txp);
+                set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, txp);
+                k_sleep(K_MSEC(100));
+
+                printk("Get Tx power level -> ");
+                get_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, &txp_get);
+                printk("TXP = %d\n", txp_get);
+                k_sleep(K_SECONDS(5));
+            }
+            else
+            {
+                int8_t rssi = 0xFF;
+                int8_t txp_adaptive;
+
+                read_conn_rssi(m_conn_handle, &rssi);
+                printk("Connected (%d) - RSSI = %d\n", m_conn_handle, rssi);
+                if (rssi > -70)
+                {
+                    txp_adaptive = bypass_mode ? BYPASS_ON_8DBM : BYPASS_OFF_21DBM;
+                }
+                else if (rssi > -90)
+                {
+                    txp_adaptive = bypass_mode ? BYPASS_ON_7DBM : BYPASS_OFF_20DBM;
+                }
+                else
+                {
+                    txp_adaptive = bypass_mode ? BYPASS_ON_6DBM : BYPASS_OFF_19DBM;
+                }
+                printk("Adaptive Tx power selected = %d\n", txp_adaptive);
+                set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_CONN, m_conn_handle, txp_adaptive);
+                get_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_CONN, m_conn_handle, &txp_get);
+                printk("Connection (%d) TXP = %d\n", m_connection, txp_get);
+
+                k_sleep(K_SECONDS(1));
+            }
+            printk("NRF_RADIO->TXPOWER:0x%x\n", NRF_RADIO->TXPOWER);
+            k_sleep(K_MSEC(500));
+        }
     }
     return 0;
 }

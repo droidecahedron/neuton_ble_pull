@@ -6,8 +6,8 @@
         crx-gpios = <&gpio1 14 GPIO_ACTIVE_HIGH>; // LED3
         cps-gpios = <&gpio1 11 GPIO_ACTIVE_LOW>; // free
         chl-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>; // free
-        tx-gain-db = <18>;
-    };
+        tx-gain-db = < (-21) >; // Depends on VCC2 -> 3V,+21/20dBm | 1V8,+16dBm | 1V2,+13dBm. Driver defaults 22.
+    }; // Try gain=bypass loss inverse approach
 };
 
 &radio {
@@ -19,9 +19,9 @@
 };
 
 // &ppib11 {
-//     status = "okay";
+    //     status = "okay";
 // };
 
 &gpio1 {
-    status="okay";
+    status = "okay";
 };
