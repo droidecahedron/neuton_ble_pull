@@ -5,6 +5,7 @@ This branch is for testing a FEM with a simple-gpio interface and bypass mode. (
 > [!IMPORTANT]
 > 1) This is purely a software sample. Please consult regulatory documentation (FCC, ISED, ETSI) for your area for guidance around transmitting at higher powers in this band. For instance, ETSI states a 10dBm max when advertising. The outputs were measured with a spectrum analyzer to confirm the approach.
 > 2) **This is not tested for potential deadlock or timing issues!**
+> 3) The sample only shows driving CPS/CHL. In theory, you would have to wrap this around entering/exiting bypass mode around radio activity.
 
 The simple gpio driver only handles ctx/crx timing. It does _not_ handle the pins that put the device into bypass.
 
@@ -27,6 +28,10 @@ ADV in bypass       -> Ask for -13 -> TXPOWER=0x3F, or +8 dBm.  (Result=
 
 ### connection
 <img width="560" height="459" alt="image" src="https://github.com/user-attachments/assets/0ab467ac-62e9-4c57-860c-db0da031e8cf" />
+
+### outputs
+<img width="280" height="81" alt="image" src="https://github.com/user-attachments/assets/90b80b74-2217-4684-8213-ed7cc47a90d4" /> <img width="35%" alt="image" src="https://github.com/user-attachments/assets/2c3a3439-bbf2-46e8-96f9-c70d3d72b9b7" />
+
 
 
 
