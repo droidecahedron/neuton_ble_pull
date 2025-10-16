@@ -1,4 +1,34 @@
 # neuton_ble_pull
+## fem_test
+This branch is for testing a FEM with a simple-gpio interface and bypass mode. (Namely the [SKY661112S](https://www.skyworksinc.com/-/media/4C7B484628BA46BDADCB2E2AACDFA1ED.pdf))
+
+The simple gpio driver only handles ctx/crx timing. It does _not_ handle the pins that put the device into bypass.
+
+<img width="916" height="279" alt="image" src="https://github.com/user-attachments/assets/c672b9e6-1c8f-46f5-b21d-39d95a5708a6" />
+
+<img width="864" height="295" alt="image" src="https://github.com/user-attachments/assets/2f85fa43-19d6-4462-a27e-10d9f4df26cc" />
+
+So you need to control the SoC's TXPOWER register to make sure the combination of fem gain and the SoC's transmit power make sense.
+This branch shows manually driving TXPOWER when you're in bypass mode, the other shows using HCI TXPWR. When using HCI TXPWR in SDK v3.1.x, you need to work with inverses to get the true desired gain.
+
+So with the RADIO peripheral's TXPOWER register/table in mind, here is the example output using the HCI TXPWR.
+
+<img width="403" height="500" alt="image" src="https://github.com/user-attachments/assets/34d66102-6add-4345-bf45-c3ecfa704473" />
+
+### advertising
+<img width="794" height="407" alt="image" src="https://github.com/user-attachments/assets/6473ba66-32a6-45bc-b21e-65f6673d6859" />
+
+ADV outside bypass -> Ask for -21 -> TXPOWER=0x18, or +0 dBm. (Result=+21)
+ADV in bypass       -> Ask for -13 -> TXPOWER=0x3F, or +8 dBm.  (Result=+8)
+
+### connection
+<img width="560" height="459" alt="image" src="https://github.com/user-attachments/assets/0ab467ac-62e9-4c57-860c-db0da031e8cf" />
+
+
+
+> [!IMPORTANT]
+> 1) This is purely a software sample. Please consult regulatory documentation (FCC, ISED, ETSI) for your area for guidance around transmitting at higher powers in this band. For instance, ETSI states a 10dBm max when advertising.
+> 2) 
 
 # Brief
 A simple BLE peripheral application that generates mock sensor data and pipes it out via a custom BLE characteristic. It also has a receive characteristic in case you want to configure the device.
