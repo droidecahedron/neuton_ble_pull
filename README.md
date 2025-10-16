@@ -24,6 +24,7 @@ So with the RADIO peripheral's TXPOWER register/table in mind, here is the examp
 <img width="794" height="407" alt="image" src="https://github.com/user-attachments/assets/6473ba66-32a6-45bc-b21e-65f6673d6859" />
 
 ADV outside bypass -> Ask for -21 -> TXPOWER=0x18, or +0 dBm. (Result=+21)
+
 ADV in bypass       -> Ask for -13 -> TXPOWER=0x3F, or +8 dBm.  (Result=+8)
 
 ### connection
