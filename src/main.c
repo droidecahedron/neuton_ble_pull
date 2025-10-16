@@ -441,7 +441,7 @@ static void exit_bypass_manual_radio_ctrl(void)
 
 // Since my FEM bypass loss is -21, we can ask for -21 for 0dbm (PA on) or -13 for
 // bypass (+8 dBm)
-# if !(RADIO_TX_MANUAL)
+#if !(RADIO_TX_MANUAL)
 #define BYPASS_OFF_21DBM -21
 #define BYPASS_OFF_20DBM -22
 #define BYPASS_OFF_19DBM -23
@@ -449,7 +449,7 @@ static void exit_bypass_manual_radio_ctrl(void)
 #define BYPASS_ON_7DBM -14
 #define BYPASS_ON_6DBM -15
 #else
-//!DBG: SANITY CHECK. If you switch tx-gain-db in dts to be +21, you'll see it will be wrong.
+//! DBG: SANITY CHECK. If you switch tx-gain-db in dts to be +21, you'll see it will be wrong.
 #define FEM_PA_GAIN 21
 #define BYPASS_OFF_21DBM 21
 #define BYPASS_OFF_20DBM 20
