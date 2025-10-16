@@ -14,7 +14,7 @@ The simple gpio driver only handles ctx/crx timing. It does _not_ handle the pin
 <img width="864" height="295" alt="image" src="https://github.com/user-attachments/assets/2f85fa43-19d6-4462-a27e-10d9f4df26cc" />
 
 So you need to control the SoC's TXPOWER register to make sure the combination of fem gain and the SoC's transmit power make sense.
-This branch shows manually driving TXPOWER when you're in bypass mode, the other shows using HCI TXPWR. When using HCI TXPWR in SDK v3.1.x, you need to work with inverses to get the true desired gain.
+This branch shows manually driving TXPOWER when you're in bypass mode, the other shows using HCI TXPWR. When using HCI TXPWR in SDK v3.1.x, you need to work with inverses to get the true desired gain. When wrangling TXPOWER manually, you have to hope the stack doesn't create an unsafe combination. In SDK 3.1.x it looks to be preserved around various BLE activities when using the FEM config.
 
 So with the RADIO peripheral's TXPOWER register/table in mind, here is the example output using the HCI TXPWR.
 
