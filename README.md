@@ -2,6 +2,10 @@
 ## fem_test
 This branch is for testing a FEM with a simple-gpio interface and bypass mode. (Namely the [SKY661112S](https://www.skyworksinc.com/-/media/4C7B484628BA46BDADCB2E2AACDFA1ED.pdf))
 
+> [!IMPORTANT]
+> 1) This is purely a software sample. Please consult regulatory documentation (FCC, ISED, ETSI) for your area for guidance around transmitting at higher powers in this band. For instance, ETSI states a 10dBm max when advertising. The outputs were measured with a spectrum analyzer to confirm the approach.
+> 2) **This is not tested for potential deadlock or timing issues!**
+
 The simple gpio driver only handles ctx/crx timing. It does _not_ handle the pins that put the device into bypass.
 
 <img width="916" height="279" alt="image" src="https://github.com/user-attachments/assets/c672b9e6-1c8f-46f5-b21d-39d95a5708a6" />
@@ -25,10 +29,6 @@ ADV in bypass       -> Ask for -13 -> TXPOWER=0x3F, or +8 dBm.  (Result=
 <img width="560" height="459" alt="image" src="https://github.com/user-attachments/assets/0ab467ac-62e9-4c57-860c-db0da031e8cf" />
 
 
-
-> [!IMPORTANT]
-> 1) This is purely a software sample. Please consult regulatory documentation (FCC, ISED, ETSI) for your area for guidance around transmitting at higher powers in this band. For instance, ETSI states a 10dBm max when advertising.
-> 2) 
 
 # Brief
 A simple BLE peripheral application that generates mock sensor data and pipes it out via a custom BLE characteristic. It also has a receive characteristic in case you want to configure the device.
