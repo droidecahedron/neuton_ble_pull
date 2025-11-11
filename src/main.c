@@ -600,8 +600,8 @@ int main(void)
             {
                 printk("NOT BYPASS MODE\n");
             }
-            cfg_bypass_gpio();
-
+            // Be smarter about this. If you exit bypass without compensating for what TXPWR is requested, you risk an unsafe combination.
+            cfg_bypass_gpio(); 
             // You can handle this in conn cb, adv, or modulate based on read_conn_rssi.
             if (!m_connection)
             {
